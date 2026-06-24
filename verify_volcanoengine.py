@@ -33,8 +33,24 @@ def check_env_file():
     with open('.env', 'r', encoding='utf-8') as f:
         content = f.read()
     
-    if 'VOLCANOENGINE_API_KEY' in content:
-        if 'your-' in content or 'your_' in content:
+    volcano_key = None
+    for line in content.splitlines():
+        line = line.strip()
+        # 跳过注释行
+        if line.startswith('#'):
+            continue
+        if line.startswith('VOLCANOENGINE_API_KEY'):
+            parts = line.split('=', 1)
+            if len(parts) == 2:
+                volcano_key = parts[1].strip()
+                # 去除可能的引号
+                if (volcano_key.startswith('"') and volcano_key.endswith('"')) or \
+                   (volcano_key.startswith("'") and volcano_key.endswith("'")):
+                    volcano_key = volcano_key[1:-1]
+                break
+    
+    if volcano_key is not None:
+        if 'your-' in volcano_key or 'your_' in volcano_key or not volcano_key:
             print("⚠️  VOLCANOENGINE_API_KEY 未配置（仍为示例值）")
             return False
         else:
@@ -58,10 +74,16 @@ def check_modules():
         'dotenv'
     ]
     
+    # 映射 pip 包名到 Python 导入模块名
+    import_mapping = {
+        'beautifulsoup4': 'bs4'
+    }
+    
     missing = []
     for package in required_packages:
+        import_name = import_mapping.get(package, package.replace('-', '_'))
         try:
-            __import__(package.replace('-', '_'))
+            __import__(import_name)
             print(f"✅ {package}")
         except ImportError:
             print(f"❌ {package} - 未安装")

@@ -2,7 +2,6 @@
 智能学业状态诊断助手 - Streamlit 主应用
 """
 import streamlit as st
-from streamlit_option_menu import option_menu
 import pandas as pd
 import io
 from data_processor import ScoreDataProcessor, create_sample_html
@@ -10,45 +9,15 @@ from llm_analyzer import LLMAnalyzer
 from visualizer import Visualizer
 from utils.config import Config
 from utils.helpers import highlight_key_metrics
-
-# 页面配置
-st.set_page_config(**Config.APP_PAGE_CONFIG)
-
-# 添加自定义 CSS
-st.markdown("""
-<style>
-    .main {
-        padding: 2rem;
-    }
-    .stMetric {
-        background-color: #f0f8ff;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
-    }
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    .info-box {
-        background-color: #d1ecf1;
-        border: 1px solid #bee5eb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    .warning-box {
-        background-color: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+# 临时重定向 stderr 以防止在裸机模式下导入时发出 ScriptRunContext 的干扰警告
+import sys
+import io
+old_stderr = sys.stderr
+sys.stderr = io.StringIO()
+try:
+    from streamlit_option_menu import option_menu
+finally:
+    sys.stderr = old_stderr
 
 
 def initialize_session_state():
@@ -65,6 +34,45 @@ def initialize_session_state():
 
 def main():
     """主函数"""
+    # 页面配置
+    st.set_page_config(**Config.APP_PAGE_CONFIG)
+    
+    # 添加自定义 CSS
+    st.markdown("""
+    <style>
+        .main {
+            padding: 2rem;
+        }
+        .stMetric {
+            background-color: rgba(31, 119, 180, 0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid #1f77b4;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .info-box {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     initialize_session_state()
     
     # 页面标题
@@ -76,14 +84,29 @@ def main():
     """)
     
     # 导航菜单
-    selected = option_menu(
-        menu_title=None,
-        options=['📊 首页', '📤 数据上传', '🤖 智能分析', '📈 结果展示', '❓ 帮助'],
-        icons=['house', 'cloud-upload', 'robot', 'bar-chart', 'question-circle'],
-        orientation='horizontal',
-        default_index=0
-    )
-    
+    with st.sidebar:
+        st.markdown("<h2 style='text-align: center; color: #1f77b4; margin-bottom: 0;'>🎓 智能学业诊断</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray; font-size: 0.9rem; margin-top: 5px;'>教务数据分析与选课系统</p>", unsafe_allow_html=True)
+        st.divider()
+        
+        selected = st.radio(
+            "功能导航",
+            options=['📊 首页', '📤 数据上传', '🤖 智能分析', '📈 结果展示', '❓ 帮助'],
+            index=0,
+            label_visibility="collapsed"
+        )
+        
+        st.divider()
+        st.markdown("### ⚙️ 数据状态")
+        if st.session_state.scores_df is not None:
+            st.success(f"📊 已导入 {len(st.session_state.scores_df)} 门课程")
+            if st.session_state.analysis_result is not None:
+                st.success("🤖 诊断报告：已生成")
+            else:
+                st.warning("🤖 诊断报告：未生成")
+        else:
+            st.info("💡 提示：请先到「📤 数据上传」页面导入成绩数据。")
+            
     if selected == '📊 首页':
         show_home()
     
@@ -140,80 +163,135 @@ def show_home():
 
 def show_upload():
     """数据上传页面"""
-    st.header("📤 上传教务成绩数据")
+    st.header("📤 获取并导入教务数据")
     
-    st.markdown("""
-    ### 使用说明
-    - 支持从教务系统导出的 HTML 成绩单
-    - 表格格式：课程名 | 学分 | 成绩（百分制）
-    - 可选：点击下方下载示例文件了解格式
-    """)
-    
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([7, 3])
     
     with col1:
-        # 文件上传
-        uploaded_file = st.file_uploader(
-            "选择成绩 HTML 文件",
-            type=['html', 'htm'],
-            help="请上传从教务系统导出的 HTML 成绩单"
-        )
+        tab_file, tab_paste, tab_auto = st.tabs([
+            "📁 上传 HTML 文件",
+            "📋 直接粘贴 HTML 代码",
+            "🚀 WebVPN 自动获取指南"
+        ])
         
-        if uploaded_file is not None:
-            try:
-                # 读取文件
-                html_content = uploaded_file.read().decode('utf-8')
-                
-                # 解析数据
-                processor = ScoreDataProcessor()
-                df = processor.parse_score_html(html_content)
-                
-                if df is not None and len(df) > 0:
-                    st.session_state.scores_df = df
-                    st.session_state.statistics = processor.get_statistics()
-                    st.session_state.subject_analysis = processor.get_subject_analysis()
-                    
-                    st.success(f"✅ 成功提取 {len(df)} 门课程数据！")
-                    
-                    # 显示数据预览
-                    with st.expander("📋 数据预览", expanded=True):
-                        st.dataframe(df, use_container_width=True)
-                    
-                    # 显示统计信息
-                    with st.expander("📊 统计信息"):
-                        stats = st.session_state.statistics
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("总课程数", int(stats['总课程数']))
-                        with col2:
-                            st.metric("平均成绩", f"{stats['平均成绩']:.1f}")
-                        with col3:
-                            st.metric("总学分", f"{stats['总学分']:.0f}")
-                        with col4:
-                            st.metric("加权绩点", f"{stats['加权绩点']:.2f}")
-                else:
-                    st.error("❌ 无法解析文件，请检查 HTML 格式是否正确")
+        def process_html_data(html_content: str):
+            """处理和保存解析后的成绩数据"""
+            processor = ScoreDataProcessor()
+            df = processor.parse_score_html(html_content)
             
-            except Exception as e:
-                st.error(f"❌ 文件处理失败: {str(e)}")
-    
+            if df is not None and len(df) > 0:
+                st.session_state.scores_df = df
+                st.session_state.statistics = processor.get_statistics()
+                st.session_state.subject_analysis = processor.get_subject_analysis()
+                
+                st.success(f"✅ 成功提取 {len(df)} 门课程数据！")
+                
+                # 显示数据预览
+                with st.expander("📋 数据预览", expanded=True):
+                    st.dataframe(df, use_container_width=True)
+                
+                # 显示统计信息
+                with st.expander("📊 统计信息"):
+                    stats = st.session_state.statistics
+                    c1, c2, c3, c4 = st.columns(4)
+                    with c1:
+                        st.metric("总课程数", int(stats['总课程数']))
+                    with c2:
+                        st.metric("平均成绩", f"{stats['平均成绩']:.1f}")
+                    with c3:
+                        st.metric("总学分", f"{stats['总学分']:.0f}")
+                    with c4:
+                        st.metric("加权绩点", f"{stats['加权绩点']:.2f}")
+            else:
+                st.error("❌ 无法解析 HTML 数据，请检查文件格式或内容是否为完整的教务成绩页面。")
+
+        with tab_file:
+            st.markdown("### 📁 上传 HTML/DO 成绩单")
+            st.markdown("请上传从教务系统导出保存的成绩单文件（支持 `.html` / `.htm` / `.do` 格式）。")
+            uploaded_file = st.file_uploader(
+                "选择成绩文件",
+                type=['html', 'htm', 'do'],
+                help="请上传从教务系统导出的 HTML 或 DO 成绩单文件",
+                key="file_uploader_key"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    html_content = uploaded_file.read().decode('utf-8')
+                    process_html_data(html_content)
+                except Exception as e:
+                    st.error(f"❌ 文件读取失败: {str(e)}")
+                    
+        with tab_paste:
+            st.markdown("### 📋 直接粘贴 HTML 代码")
+            st.markdown("您也可以全选教务系统成绩页面并复制其源文件内容，然后直接粘贴到下方输入框中。")
+            pasted_html = st.text_area(
+                "粘贴你的成绩页面 HTML 代码",
+                height=300,
+                placeholder="在此处粘贴 HTML 源码...",
+                key="pasted_html_key"
+            )
+            if st.button("🚀 开始解析粘贴的代码", use_container_width=True, key="btn_parse_pasted"):
+                if pasted_html.strip():
+                    try:
+                        process_html_data(pasted_html)
+                    except Exception as e:
+                        st.error(f"❌ 解析失败: {str(e)}")
+                else:
+                    st.warning("⚠️ 请先粘贴 HTML 代码后再点击解析")
+                    
+        with tab_auto:
+            st.markdown("### 🚀 最新 WebVPN 自动化抓取流程")
+            st.markdown("通过以下最新工作流，可以免去繁琐操作，直接自动同步全部成绩：")
+            
+            st.markdown("#### 1️⃣ 第一步：统一认证与会话同步")
+            st.markdown("点击下方按钮访问 WebVPN 登录入口，完成登录的同时会自动同步教务系统的 Session。")
+            login_url = "https://webvpn.bipt.edu.cn/https/77726476706e69737468656265737421fae05b84693261406a468ca88d1b203b/academic/login/bipt/loginIds6.jsp"
+            st.markdown(f'<a href="{login_url}" target="_blank" style="display:inline-block;padding:8px 16px;background-color:#1f77b4;color:white;text-decoration:none;border-radius:4px;font-weight:bold;margin-bottom:10px;">🔗 打开 WebVPN 登录入口</a>', unsafe_allow_html=True)
+            
+            st.markdown("#### 2️⃣ 第二步：跳转成绩页面")
+            st.markdown("认证完成后，直接点击下方按钮跳转至成绩查询接口页面。")
+            score_url = "https://webvpn.bipt.edu.cn/https/77726476706e69737468656265737421fae05b84693261406a468ca88d1b203b/academic/manager/score/studentOwnScore.do"
+            st.markdown(f'<a href="{score_url}" target="_blank" style="display:inline-block;padding:8px 16px;background-color:#2ca02c;color:white;text-decoration:none;border-radius:4px;font-weight:bold;margin-bottom:10px;">📊 跳转成绩查询页面</a>', unsafe_allow_html=True)
+            
+            st.markdown("#### 3️⃣ 第三步：JS 注入绕过默认限制")
+            st.markdown("""
+            默认页面只显示当学期成绩，请在成绩页面按 `F12`（或右键 -> 检查），切换到 **Console (控制台)**，复制并粘贴运行以下 JavaScript 脚本。
+            这将自动拉取全部学年和学期的历年成绩：
+            """)
+            js_code = """document.querySelector('select[name="year"]').value = "";
+document.querySelector('select[name="term"]').value = "";
+document.forms["form1"].submit();"""
+            st.code(js_code, language="javascript")
+            
+            st.markdown("#### 4️⃣ 第四步：全选复制并粘贴")
+            st.markdown("""
+            脚本执行并页面重新加载后：
+            1. 页面上按 `Ctrl+A` (全选) 接着 `Ctrl+C` (复制)；
+            2. 返回本应用，切换到 **"直接粘贴 HTML 代码"** 标签页；
+            3. 将内容粘贴到输入框中，点击解析按钮即可完成同步。
+            """)
+            
     with col2:
-        st.markdown("### 📥 示例文件下载")
+        st.markdown("### 📥 示例与参考")
         
         # 生成示例 HTML
         sample_html = create_sample_html()
         
         st.download_button(
-            label="⬇️ 下载示例成绩单（HTML）",
+            label="⬇️ 下载示例成绩单 (HTML)",
             data=sample_html,
             file_name="sample_scores.html",
             mime="text/html",
-            help="下载示例成绩单，了解要求的文件格式"
+            help="下载示例成绩单，了解要求的文件格式",
+            use_container_width=True,
+            key="btn_download_sample"
         )
         
-        # 生成示例 HTML 并在本地创建
+        # 查看示例
         with st.expander("👀 查看示例格式"):
             st.code(sample_html, language='html')
+
 
 
 def show_analysis():
@@ -550,4 +628,20 @@ def get_sample_analysis_result() -> dict:
 
 
 if __name__ == '__main__':
-    main()
+    import streamlit.runtime
+    # 只有在 Streamlit 运行时上下文已建立的情况下才执行 main
+    if streamlit.runtime.exists():
+        main()
+    else:
+        import os
+        import sys
+        import subprocess
+        # 如果尚未启动子进程，则使用子进程启动 Streamlit 服务
+        if not os.environ.get("STREAMLIT_SUBPROCESS_RUN"):
+            os.environ["STREAMLIT_SUBPROCESS_RUN"] = "1"
+            # 使用干净的子进程启动 streamlit，避免主进程内共享 sys.modules 缓存导致自定义组件静态资源 404
+            cmd = [sys.executable, "-m", "streamlit", "run", __file__] + sys.argv[1:]
+            try:
+                sys.exit(subprocess.run(cmd).returncode)
+            except KeyboardInterrupt:
+                sys.exit(0)

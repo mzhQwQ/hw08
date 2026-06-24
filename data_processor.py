@@ -20,7 +20,9 @@ class ScoreDataProcessor:
         """
         解析教务系统导出的 HTML 成绩单
         
-        支持多种常见的 HTML 表格结构
+        支持多种常见的 HTML 表格结构，包括：
+        1. 新版教务系统格式（含学年、学期、绩点等详细信息）
+        2. 简化格式（仅含课程名、学分、成绩）
         
         Args:
             html_content: HTML 文件内容
@@ -34,25 +36,40 @@ class ScoreDataProcessor:
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # 查找所有表格
-            tables = soup.find_all('table')
+            tables = soup.find_all('table', class_='datalist')
+            if not tables:
+                tables = soup.find_all('table')
             
             if not tables:
                 return None
             
-            # 使用第一个表格（通常是成绩表）
+            # 使用数据表格（通常是成绩表）
             table = tables[0]
             
             rows = []
-            # 跳过表头行，提取数据行
             tr_list = table.find_all('tr')
             
+            # 检测表格格式
+            if len(tr_list) > 0:
+                header_tds = tr_list[0].find_all('th')
+                if header_tds:
+                    # 新版教务系统格式（16+ 列）
+                    if len(header_tds) >= 14:
+                        return self._parse_new_format(html_content)
+            
+            # 解析数据行
             for tr in tr_list[1:]:  # 跳过表头
                 tds = tr.find_all('td')
                 
                 if len(tds) < 3:
                     continue
                 
-                # 提取基本信息
+                # 检测是否为新格式（含绩点列）
+                if len(tds) >= 10:
+                    # 新格式：学年、学期、院系、课程号、课序号、课程名、学分、教师、课组、绩点...
+                    return self._parse_new_format(html_content)
+                
+                # 旧格式解析
                 course_name = clean_text(tds[0].get_text())
                 credits_str = clean_text(tds[1].get_text())
                 score_str = clean_text(tds[2].get_text()) if len(tds) > 2 else '0'
@@ -85,6 +102,126 @@ class ScoreDataProcessor:
         except Exception as e:
             print(f"HTML 解析错误: {str(e)}")
             return None
+    
+    def _parse_new_format(self, html_content: str) -> Optional[pd.DataFrame]:
+        """
+        解析新版教务系统格式（含学年、学期、绩点等信息）
+        
+        Args:
+            html_content: HTML 文件内容
+        
+        Returns:
+            DataFrame 或 None
+        """
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            tables = soup.find_all('table', class_='datalist')
+            if not tables:
+                tables = soup.find_all('table')
+            
+            if not tables:
+                return None
+            
+            table = tables[0]
+            rows = []
+            
+            tr_list = table.find_all('tr')
+            for tr in tr_list[1:]:  # 跳过表头
+                tds = tr.find_all('td')
+                
+                if len(tds) < 10:
+                    continue
+                
+                try:
+                    # 新格式列顺序：
+                    # 0:学年, 1:学期, 2:院系, 3:课程号, 4:课序号, 
+                    # 5:课程名, 6:学分, 7:教师, 8:课组, 9:绩点, ...
+                    
+                    course_name = clean_text(tds[5].get_text())
+                    credits_str = clean_text(tds[6].get_text())
+                    grade_point_str = clean_text(tds[9].get_text())
+                    year = clean_text(tds[0].get_text())
+                    term = clean_text(tds[1].get_text())
+                    
+                    # 类型转换
+                    credits = safe_float(credits_str, 0)
+                    grade_point = safe_float(grade_point_str, 0)
+                    
+                    # 从绩点推算成绩
+                    score = self._grade_point_to_score(grade_point)
+                    
+                    # 跳过无效数据
+                    if not course_name or score < 0:
+                        continue
+                    
+                    rows.append({
+                        '课程名': course_name,
+                        '学分': credits,
+                        '成绩': score,
+                        '绩点': grade_point,
+                        '等级': self._get_grade_level(score),
+                        '学年': year,
+                        '学期': term
+                    })
+                    
+                except (IndexError, ValueError):
+                    continue
+            
+            if not rows:
+                return None
+            
+            self.df = pd.DataFrame(rows)
+            return self.df
+            
+        except Exception as e:
+            print(f"新格式解析错误: {str(e)}")
+            return None
+    
+    @staticmethod
+    def _grade_point_to_score(grade_point: float) -> float:
+        """
+        从绩点反推成绩分数
+        
+        对应关系：
+        - 4.0 → 95
+        - 3.7 → 88
+        - 3.3 → 84
+        - 3.0 → 81
+        - 2.7 → 78
+        - 2.3 → 74
+        - 2.0 → 71
+        - 1.7 → 68
+        - 1.3 → 64
+        - 1.0 → 61
+        
+        Args:
+            grade_point: 绩点
+        
+        Returns:
+            推算的分数
+        """
+        if grade_point >= 4.0:
+            return 95.0
+        elif grade_point >= 3.7:
+            return 88.0
+        elif grade_point >= 3.3:
+            return 84.0
+        elif grade_point >= 3.0:
+            return 81.0
+        elif grade_point >= 2.7:
+            return 78.0
+        elif grade_point >= 2.3:
+            return 74.0
+        elif grade_point >= 2.0:
+            return 71.0
+        elif grade_point >= 1.7:
+            return 68.0
+        elif grade_point >= 1.3:
+            return 64.0
+        elif grade_point >= 1.0:
+            return 61.0
+        else:
+            return 0.0
     
     def _get_grade_level(self, score: float) -> str:
         """
