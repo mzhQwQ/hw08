@@ -307,12 +307,12 @@ def show_analysis():
     with col1:
         model_choice = st.selectbox(
             "选择大模型",
-            options=['qwen', 'zhipu', 'openai', 'volcanoengine'],
+            options=['volcanoengine', 'qwen', 'zhipu', 'openai'],
             format_func=lambda x: {
-                'qwen': '🟦 阿里通义千问',
-                'zhipu': '🟦 智谱 GLM',
-                'openai': '🟦 OpenAI GPT',
-                'volcanoengine': '🎵 抖音豆包'
+                'qwen': '阿里通义千问',
+                'zhipu': '智谱 GLM',
+                'openai': 'OpenAI GPT',
+                'volcanoengine': '抖音豆包'
             }.get(x, x),
             help="选择要使用的大模型服务"
         )
@@ -538,6 +538,8 @@ def show_help():
         QWEN_API_KEY=your-key
         ZHIPU_API_KEY=your-key
         OPENAI_API_KEY=your-key
+        VOLCANOENGINE_API_KEY=your-key
+        VOLCANOENGINE_MODEL_NAME=doubao-pro-32k
         ```
         
         **运行应用**
