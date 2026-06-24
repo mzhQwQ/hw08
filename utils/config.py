@@ -17,6 +17,7 @@ class Config:
     ZHIPU_API_KEY = os.getenv('ZHIPU_API_KEY', '')
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     VOLCANOENGINE_API_KEY = os.getenv('VOLCANOENGINE_API_KEY', '')
+    VOLCANOENGINE_MODEL_NAME = os.getenv('VOLCANOENGINE_MODEL_NAME', 'doubao-pro-32k')
     
     # 默认模型
     DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'qwen')
@@ -90,8 +91,13 @@ class Config:
     
     @classmethod
     def get_model_config(cls, model_type):
-        """获取指定模型的配置"""
-        return cls.MODEL_CONFIG.get(model_type, cls.MODEL_CONFIG['qwen'])
+        """获取指定模型的配置
+        对于 volcanoengine 模型，使用环境变量 VOLCANOENGINE_MODEL_NAME 动态设置 model_name"""
+        config = cls.MODEL_CONFIG.get(model_type, cls.MODEL_CONFIG['qwen']).copy()
+        if model_type == 'volcanoengine':
+            # Override model_name with env var if provided
+            config['model_name'] = cls.VOLCANOENGINE_MODEL_NAME
+        return config
 
 
 if __name__ == '__main__':
