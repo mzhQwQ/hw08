@@ -17,7 +17,7 @@ class Config:
     ZHIPU_API_KEY = os.getenv('ZHIPU_API_KEY', '')
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     VOLCANOENGINE_API_KEY = os.getenv('VOLCANOENGINE_API_KEY', '')
-    VOLCANOENGINE_MODEL_NAME = os.getenv('VOLCANOENGINE_MODEL_NAME', 'doubao-pro-32k')
+    VOLCANOENGINE_ENDPOINT_ID = os.getenv('VOLCANOENGINE_ENDPOINT_ID', '')  # 豆包模型需要使用接入点 ID (Endpoint ID)
     
     # 默认模型
     DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'qwen')
@@ -49,7 +49,7 @@ class Config:
             'top_p': 0.8
         },
         'volcanoengine': {
-            'model_name': 'doubao-pro-32k',
+            'model_name': '',  # 动态由 VOLCANOENGINE_ENDPOINT_ID 填充
             'temperature': 0.7,
             'max_tokens': 1500,
             'top_p': 0.8
@@ -84,19 +84,22 @@ class Config:
             raise ValueError('未配置 ZHIPU_API_KEY')
         elif model == 'openai' and not cls.OPENAI_API_KEY:
             raise ValueError('未配置 OPENAI_API_KEY')
-        elif model == 'volcanoengine' and not cls.VOLCANOENGINE_API_KEY:
-            raise ValueError('未配置 VOLCANOENGINE_API_KEY')
+        elif model == 'volcanoengine':
+            if not cls.VOLCANOENGINE_API_KEY:
+                raise ValueError('未配置 VOLCANOENGINE_API_KEY')
+            if not cls.VOLCANOENGINE_ENDPOINT_ID:
+                raise ValueError('未配置 VOLCANOENGINE_ENDPOINT_ID (豆包模型必须提供接入点 ID)')
         
         return True
     
     @classmethod
     def get_model_config(cls, model_type):
         """获取指定模型的配置
-        对于 volcanoengine 模型，使用环境变量 VOLCANOENGINE_MODEL_NAME 动态设置 model_name"""
+        对于 volcanoengine 模型，使用环境变量 VOLCANOENGINE_ENDPOINT_ID 动态设置 model_name"""
         config = cls.MODEL_CONFIG.get(model_type, cls.MODEL_CONFIG['qwen']).copy()
         if model_type == 'volcanoengine':
-            # Override model_name with env var if provided
-            config['model_name'] = cls.VOLCANOENGINE_MODEL_NAME
+            # Override model_name with endpoint ID
+            config['model_name'] = cls.VOLCANOENGINE_ENDPOINT_ID
         return config
 
 

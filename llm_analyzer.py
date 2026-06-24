@@ -233,8 +233,13 @@ class LLMAnalyzer:
         """
         try:
             api_key = Config.VOLCANOENGINE_API_KEY
+            endpoint_id = Config.VOLCANOENGINE_ENDPOINT_ID
+            
             if not api_key:
                 print("错误: 未配置 VOLCANOENGINE_API_KEY")
+                return None
+            if not endpoint_id:
+                print("错误: 未配置 VOLCANOENGINE_ENDPOINT_ID (接入点 ID)")
                 return None
             
             headers = {
@@ -243,8 +248,11 @@ class LLMAnalyzer:
             }
             
             payload = {
-                'model': self.model_config['model_name'],
-                'messages': [{'role': 'user', 'content': prompt}],
+                'model': endpoint_id,  # 豆包必须使用 Endpoint ID
+                'messages': [
+                    {'role': 'system', 'content': '你是一个专业的学业诊断助手，请严格按 JSON 格式输出。'},
+                    {'role': 'user', 'content': prompt}
+                ],
                 'temperature': self.model_config['temperature'],
                 'max_tokens': self.model_config['max_tokens'],
                 'top_p': self.model_config['top_p']
@@ -261,11 +269,14 @@ class LLMAnalyzer:
                 result = response.json()
                 if 'choices' in result and len(result['choices']) > 0:
                     return result['choices'][0].get('message', {}).get('content', '')
+            else:
+                print(f"火山引擎 API 调用失败，状态码: {response.status_code}")
+                print(f"响应内容: {response.text}")
             
             return None
         
         except Exception as e:
-            print(f"火山引擎 API 调用失败: {str(e)}")
+            print(f"火山引擎 API 调用异常: {str(e)}")
             return None
     
     def _call_openai_api(self, prompt: str) -> Optional[str]:
