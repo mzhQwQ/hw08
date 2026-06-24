@@ -451,16 +451,15 @@ def show_results():
             
             # 评分详情
             st.markdown("#### 评分详情")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            dimensions = ['数学基础', '英语能力', '专业课程', '整体表现']
-            cols = [col1, col2, col3, col4]
-            
-            for dim, col in zip(dimensions, cols):
-                if dim in ratings:
+            # 动态网格布局展示评分详情
+            dimensions = list(ratings.keys())
+            cols_per_row = 4
+            for i in range(0, len(dimensions), cols_per_row):
+                row_dims = dimensions[i:i+cols_per_row]
+                cols = st.columns(cols_per_row)  # 保持列宽一致
+                for idx, dim in enumerate(row_dims):
                     score = ratings[dim]
-                    color = "green" if score >= 0.8 else "orange" if score >= 0.7 else "red"
-                    with col:
+                    with cols[idx]:
                         st.metric(dim, f"{score:.2f}", delta=f"{score*100:.0f}%")
     
     with tab4:
@@ -609,6 +608,9 @@ def get_sample_analysis_result() -> dict:
             '数学基础': 0.85,
             '英语能力': 0.72,
             '专业课程': 0.88,
+            '实践能力': 0.80,
+            '创新与科研': 0.75,
+            '通识素养': 0.90,
             '整体表现': 0.82
         },
         'strengths': [

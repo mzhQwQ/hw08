@@ -90,10 +90,13 @@ class LLMAnalyzer:
 
 【分析要求】
 请从以下维度进行评估：
-1. 数学基础能力（基于高等数学、线性代数等课程成绩）
+1. 数学基础能力（基于高等数学、线性代数、概率论等课程成绩）
 2. 英语语言能力（基于英语课程成绩）
-3. 专业课程掌握（基于计算机科学、编程、数据结构等专业课程成绩）
-4. 整体学业表现（综合所有课程成绩）
+3. 专业课程掌握（基于计算机科学、数据结构、算法等专业课程成绩）
+4. 实践能力（基于实验课、课程设计、项目实训等成绩）
+5. 创新与科研（基于科研竞赛、创新项目、论文或前沿选修课表现）
+6. 通识素养（基于人文社科、艺术、体育等通识教育课程成绩）
+7. 整体学业表现（综合所有课程的学分绩点等整体学业状况）
 
 每个维度的评分为 0-1 之间的数字，其中：
 - 0.9-1.0 表示优秀
@@ -110,7 +113,10 @@ class LLMAnalyzer:
         "数学基础": 0.85,
         "英语能力": 0.72,
         "专业课程": 0.88,
-        "整体表现": 0.80
+        "实践能力": 0.80,
+        "创新与科研": 0.75,
+        "通识素养": 0.90,
+        "整体表现": 0.82
     }},
     "strengths": ["优势 1", "优势 2", "优势 3"],
     "weaknesses": ["劣势 1", "劣势 2"],
@@ -121,7 +127,7 @@ class LLMAnalyzer:
     ]
 }}
 
-确保 ratings 中的所有数值都在 0-1 之间，recommendations 列表中至少包含 3 条建议。
+确保 ratings 中的所有 7 个维度数值都在 0-1 之间，recommendations 列表中至少包含 3 条建议。
 """
         return prompt
     
@@ -233,13 +239,10 @@ class LLMAnalyzer:
         """
         try:
             api_key = Config.VOLCANOENGINE_API_KEY
-            endpoint_id = Config.VOLCANOENGINE_ENDPOINT_ID
+            model_name = Config.VOLCANOENGINE_MODEL_NAME
             
             if not api_key:
                 print("错误: 未配置 VOLCANOENGINE_API_KEY")
-                return None
-            if not endpoint_id:
-                print("错误: 未配置 VOLCANOENGINE_ENDPOINT_ID (接入点 ID)")
                 return None
             
             headers = {
@@ -247,28 +250,63 @@ class LLMAnalyzer:
                 'Content-Type': 'application/json'
             }
             
-            payload = {
-                'model': endpoint_id,  # 豆包必须使用 Endpoint ID
-                'messages': [
-                    {'role': 'system', 'content': '你是一个专业的学业诊断助手，请严格按 JSON 格式输出。'},
-                    {'role': 'user', 'content': prompt}
-                ],
-                'temperature': self.model_config['temperature'],
-                'max_tokens': self.model_config['max_tokens'],
-                'top_p': self.model_config['top_p']
-            }
+            url = Config.VOLCANOENGINE_API_URL
+            is_responses_api = "/v3/responses" in url
+            
+            if is_responses_api:
+                # Responses API payload format
+                payload = {
+                    'model': model_name,
+                    'input': [
+                        {
+                            'role': 'user',
+                            'content': [
+                                {
+                                    'type': 'input_text',
+                                    'text': prompt
+                                }
+                            ]
+                        }
+                    ]
+                }
+            else:
+                # Chat completions payload format
+                payload = {
+                    'model': model_name,
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'temperature': self.model_config['temperature'],
+                    'max_tokens': self.model_config['max_tokens'],
+                    'top_p': self.model_config['top_p']
+                }
             
             response = requests.post(
-                Config.VOLCANOENGINE_API_URL,
+                url,
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=300  # Increased timeout to 300s for reasoning models
             )
             
             if response.status_code == 200:
                 result = response.json()
-                if 'choices' in result and len(result['choices']) > 0:
-                    return result['choices'][0].get('message', {}).get('content', '')
+                if is_responses_api:
+                    # Parse Responses API response structure
+                    if 'output' in result and isinstance(result['output'], list):
+                        for item in result['output']:
+                            if item.get('type') == 'message':
+                                content_list = item.get('content', [])
+                                for content_item in content_list:
+                                    if content_item.get('type') == 'output_text':
+                                        return content_item.get('text', '')
+                                    elif 'text' in content_item:
+                                        return content_item.get('text', '')
+                    
+                    # Fallback if parsing fails but status is 200
+                    print(f"警告: 无法从常规路径解析 Responses 响应结构，原始响应: {result}")
+                    return str(result)
+                else:
+                    # Standard chat completions parsing
+                    if 'choices' in result and len(result['choices']) > 0:
+                        return result['choices'][0].get('message', {}).get('content', '')
             else:
                 print(f"火山引擎 API 调用失败，状态码: {response.status_code}")
                 print(f"响应内容: {response.text}")

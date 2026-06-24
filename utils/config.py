@@ -17,7 +17,7 @@ class Config:
     ZHIPU_API_KEY = os.getenv('ZHIPU_API_KEY', '')
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     VOLCANOENGINE_API_KEY = os.getenv('VOLCANOENGINE_API_KEY', '')
-    VOLCANOENGINE_ENDPOINT_ID = os.getenv('VOLCANOENGINE_ENDPOINT_ID', '')  # 豆包模型需要使用接入点 ID (Endpoint ID)
+    VOLCANOENGINE_MODEL_NAME = os.getenv('VOLCANOENGINE_MODEL_NAME', 'doubao-seed-2-1-pro-260628')
     
     # 默认模型
     DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'qwen')
@@ -26,7 +26,8 @@ class Config:
     QWEN_API_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation'
     ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
     OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
-    VOLCANOENGINE_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
+    # 使用用户测试成功的 responses 接口作为默认，亦可从环境变量覆盖
+    VOLCANOENGINE_API_URL = os.getenv('VOLCANOENGINE_API_URL', 'https://ark.cn-beijing.volces.com/api/v3/responses')
     
     # LLM 模型参数
     MODEL_CONFIG = {
@@ -61,6 +62,9 @@ class Config:
         '数学基础',
         '英语能力',
         '专业课程',
+        '实践能力',
+        '创新与科研',
+        '通识素养',
         '整体表现'
     ]
     
@@ -87,19 +91,18 @@ class Config:
         elif model == 'volcanoengine':
             if not cls.VOLCANOENGINE_API_KEY:
                 raise ValueError('未配置 VOLCANOENGINE_API_KEY')
-            if not cls.VOLCANOENGINE_ENDPOINT_ID:
-                raise ValueError('未配置 VOLCANOENGINE_ENDPOINT_ID (豆包模型必须提供接入点 ID)')
+            if not cls.VOLCANOENGINE_MODEL_NAME:
+                raise ValueError('未配置 VOLCANOENGINE_MODEL_NAME')
         
         return True
     
     @classmethod
     def get_model_config(cls, model_type):
         """获取指定模型的配置
-        对于 volcanoengine 模型，使用环境变量 VOLCANOENGINE_ENDPOINT_ID 动态设置 model_name"""
+        对于 volcanoengine 模型，使用环境变量 VOLCANOENGINE_MODEL_NAME"""
         config = cls.MODEL_CONFIG.get(model_type, cls.MODEL_CONFIG['qwen']).copy()
         if model_type == 'volcanoengine':
-            # Override model_name with endpoint ID
-            config['model_name'] = cls.VOLCANOENGINE_ENDPOINT_ID
+            config['model_name'] = cls.VOLCANOENGINE_MODEL_NAME
         return config
 
 

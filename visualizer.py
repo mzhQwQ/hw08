@@ -34,13 +34,17 @@ class Visualizer:
         categories.append(categories[0])
         values.append(values[0])
         
+        # Use a premium vibrant teal/cyan color that stands out on both light and dark backgrounds
+        radar_color = '#00b4d8'
+        fill_color = 'rgba(0, 180, 216, 0.25)'
+        
         fig = go.Figure(data=go.Scatterpolar(
             r=values,
             theta=categories,
             fill='toself',
             name='学业评分',
-            line=dict(color=self.theme_color, width=2),
-            fillcolor='rgba(31, 119, 180, 0.3)',
+            line=dict(color=radar_color, width=2.5),
+            fillcolor=fill_color,
             hovertemplate='<b>%{theta}</b><br>评分: %{r:.2f}<extra></extra>'
         ))
         
@@ -51,10 +55,13 @@ class Visualizer:
                     range=[0, 1],
                     tickvals=[0.2, 0.4, 0.6, 0.8, 1.0],
                     ticktext=['0.2', '0.4', '0.6', '0.8', '1.0'],
-                    gridcolor='#d3d3d3'
+                    gridcolor='rgba(128, 128, 128, 0.2)',
+                    linecolor='rgba(128, 128, 128, 0.2)',
+                    tickcolor='rgba(128, 128, 128, 0.5)'
                 ),
                 angularaxis=dict(
-                    gridcolor='#d3d3d3'
+                    gridcolor='rgba(128, 128, 128, 0.2)',
+                    linecolor='rgba(128, 128, 128, 0.2)'
                 )
             ),
             title={
@@ -68,7 +75,7 @@ class Visualizer:
             showlegend=False,
             hovermode='closest',
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(240,240,240,0.5)'
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         
         return fig
@@ -249,7 +256,7 @@ class Visualizer:
         fig.update_layout(
             height=400,
             font=dict(size=12),
-            paper_bgcolor='white'
+            paper_bgcolor='rgba(0,0,0,0)'
         )
         
         return fig
