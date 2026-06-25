@@ -142,22 +142,26 @@ def main():
         if st.session_state.scores_df is not None:
             st.success(f"📊 已导入 {len(st.session_state.scores_df)} 门课程")
             
+            # 创建空容器以供后面在 show_analysis / show_results 中进行动态实时修改
+            sidebar_status_placeholder = st.empty()
+            
             # 后台任务状态全局提示
             if st.session_state.analysis_tracker is not None:
                 tracker = st.session_state.analysis_tracker
                 if tracker.status == "running":
                     elapsed = time.time() - tracker.start_time
-                    st.info(f"🤖 正在诊断中... ({int(tracker.progress)}% | {elapsed:.0f}s)")
+                    sidebar_status_placeholder.info(f"🤖 正在诊断中... ({int(tracker.progress)}% | {elapsed:.0f}s)")
                 elif tracker.status == "completed":
-                    st.success("🤖 诊断报告：已生成")
+                    sidebar_status_placeholder.success("🤖 诊断报告：已生成")
                 elif tracker.status == "failed":
-                    st.error("🤖 诊断报告：生成失败")
+                    sidebar_status_placeholder.error("🤖 诊断报告：生成失败")
             elif st.session_state.analysis_result is not None:
-                st.success("🤖 诊断报告：已生成")
+                sidebar_status_placeholder.success("🤖 诊断报告：已生成")
             else:
-                st.warning("🤖 诊断报告：未生成")
+                sidebar_status_placeholder.warning("🤖 诊断报告：未生成")
         else:
-            st.info("💡 提示：请先到「📤 数据上传」页面导入成绩数据。")
+            sidebar_status_placeholder = st.empty()
+            sidebar_status_placeholder.info("💡 提示：请先到「📤 数据上传」页面导入成绩数据。")
             
     if selected == '📊 首页':
         show_home()
@@ -166,10 +170,10 @@ def main():
         show_upload()
     
     elif selected == '🤖 智能分析':
-        show_analysis()
+        show_analysis(sidebar_status_placeholder)
     
     elif selected == '📈 结果展示':
-        show_results()
+        show_results(sidebar_status_placeholder)
     
     elif selected == '❓ 帮助':
         show_help()
@@ -346,7 +350,7 @@ document.forms["form1"].submit();"""
 
 
 
-def show_analysis():
+def show_analysis(sidebar_status_placeholder=None):
     """智能分析页面"""
     st.header("🤖 智能学业分析")
     
@@ -365,8 +369,8 @@ def show_analysis():
             model_choice = st.session_state.get('last_model_choice', 'volcanoengine')
             is_reasoning = (model_choice == 'volcanoengine' and 'seed' in Config.VOLCANOENGINE_MODEL_NAME.lower())
             
-            # 推理模型(doubao-seed)默认 100 秒，标准模型默认 15 秒
-            target_time = 100.0 if is_reasoning else 15.0
+            # 推理模型(doubao-seed)默认 200 秒，标准模型默认 15 秒
+            target_time = 200.0 if is_reasoning else 15.0
             increment_interval = 0.5
             increment_amount = (95.0 / (target_time / increment_interval))
             
@@ -378,7 +382,7 @@ def show_analysis():
             if is_reasoning:
                 tip_placeholder.info(
                     "💡 **重要提示**：当前使用的是抖音豆包推理模型 (`doubao-seed-...`)，该模型会进行深度思考与推理，"
-                    "因此生成报告需要 1-2 分钟（通常为 100 秒左右）。\n\n"
+                    "因此生成报告需要 2-3 分钟（通常为 200 秒左右）。\n\n"
                     "**由于分析正在后台多线程运行，您可以自由点击侧边栏切换至其他页面（如首页、数据上传）浏览，"
                     "分析绝对不会中断！** 分析完成后，结果会自动保存，您可以随时前往“结果展示”查看。"
                 )
@@ -393,6 +397,11 @@ def show_analysis():
                 progress_bar.progress(int(tracker.progress))
                 elapsed = time.time() - tracker.start_time
                 status_text.text(f"正在进行智能分析，已耗时 {elapsed:.1f} 秒... (进度: {int(tracker.progress)}%)")
+                
+                # 同步更新侧边栏占位符中的诊断状态
+                if sidebar_status_placeholder is not None:
+                    sidebar_status_placeholder.info(f"🤖 正在诊断中... ({int(tracker.progress)}% | {int(elapsed)}s)")
+                    
                 time.sleep(increment_interval)
                 
             tip_placeholder.empty()
@@ -481,7 +490,7 @@ def show_analysis():
                 return
 
 
-def show_results():
+def show_results(sidebar_status_placeholder=None):
     """结果展示页面"""
     st.header("📈 分析结果展示")
     
@@ -499,7 +508,7 @@ def show_results():
                 
                 model_choice = st.session_state.get('last_model_choice', 'volcanoengine')
                 is_reasoning = (model_choice == 'volcanoengine' and 'seed' in Config.VOLCANOENGINE_MODEL_NAME.lower())
-                target_time = 100.0 if is_reasoning else 15.0
+                target_time = 200.0 if is_reasoning else 15.0
                 increment_interval = 0.5
                 increment_amount = (95.0 / (target_time / increment_interval))
                 
@@ -512,6 +521,11 @@ def show_results():
                     progress_bar.progress(int(tracker.progress))
                     elapsed = time.time() - tracker.start_time
                     status_text.text(f"正在后台生成学业诊断报告，已耗时 {elapsed:.1f} 秒... (进度: {int(tracker.progress)}%)")
+                    
+                    # 同步更新侧边栏占位符中的诊断状态
+                    if sidebar_status_placeholder is not None:
+                        sidebar_status_placeholder.info(f"🤖 正在诊断中... ({int(tracker.progress)}% | {int(elapsed)}s)")
+                        
                     time.sleep(increment_interval)
                     
             if tracker.status == "completed":
