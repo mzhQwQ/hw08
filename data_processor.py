@@ -6,7 +6,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from typing import Optional, Dict, List
 import re
-from utils.helpers import clean_text, safe_float, calculate_gpa
+from utils.helpers import clean_text, safe_float, calculate_gpa, grade_point_to_score, score_to_grade_level
 
 
 class ScoreDataProcessor:
@@ -76,21 +76,26 @@ class ScoreDataProcessor:
                 
                 # 类型转换
                 credits = safe_float(credits_str, 0)
-                score = safe_float(score_str, 0)
+                
+                # 支持字母记分制或二级分制
+                try:
+                    score = float(score_str)
+                    gpa = calculate_gpa(score)
+                except ValueError:
+                    # 如果不是纯数字，可能是等第或通过/不通过等
+                    gpa = calculate_gpa(score_str)
+                    score = grade_point_to_score(gpa)
                 
                 # 跳过无效数据
                 if not course_name or score < 0 or score > 100:
                     continue
-                
-                # 计算绩点
-                gpa = calculate_gpa(score)
                 
                 rows.append({
                     '课程名': course_name,
                     '学分': credits,
                     '成绩': score,
                     '绩点': gpa,
-                    '等级': self._get_grade_level(score)
+                    '等级': score_to_grade_level(score)
                 })
             
             if not rows:
@@ -148,7 +153,7 @@ class ScoreDataProcessor:
                     grade_point = safe_float(grade_point_str, 0)
                     
                     # 从绩点推算成绩
-                    score = self._grade_point_to_score(grade_point)
+                    score = grade_point_to_score(grade_point)
                     
                     # 跳过无效数据
                     if not course_name or score < 0:
@@ -159,7 +164,7 @@ class ScoreDataProcessor:
                         '学分': credits,
                         '成绩': score,
                         '绩点': grade_point,
-                        '等级': self._get_grade_level(score),
+                        '等级': score_to_grade_level(score),
                         '学年': year,
                         '学期': term
                     })
@@ -180,69 +185,15 @@ class ScoreDataProcessor:
     @staticmethod
     def _grade_point_to_score(grade_point: float) -> float:
         """
-        从绩点反推成绩分数
-        
-        对应关系：
-        - 4.0 → 95
-        - 3.7 → 88
-        - 3.3 → 84
-        - 3.0 → 81
-        - 2.7 → 78
-        - 2.3 → 74
-        - 2.0 → 71
-        - 1.7 → 68
-        - 1.3 → 64
-        - 1.0 → 61
-        
-        Args:
-            grade_point: 绩点
-        
-        Returns:
-            推算的分数
+        从绩点反推成绩分数 (向后兼容委托函数)
         """
-        if grade_point >= 4.0:
-            return 95.0
-        elif grade_point >= 3.7:
-            return 88.0
-        elif grade_point >= 3.3:
-            return 84.0
-        elif grade_point >= 3.0:
-            return 81.0
-        elif grade_point >= 2.7:
-            return 78.0
-        elif grade_point >= 2.3:
-            return 74.0
-        elif grade_point >= 2.0:
-            return 71.0
-        elif grade_point >= 1.7:
-            return 68.0
-        elif grade_point >= 1.3:
-            return 64.0
-        elif grade_point >= 1.0:
-            return 61.0
-        else:
-            return 0.0
+        return grade_point_to_score(grade_point)
     
     def _get_grade_level(self, score: float) -> str:
         """
-        根据分数获取等级
-        
-        Args:
-            score: 分数
-        
-        Returns:
-            等级字符串
+        根据分数获取等级 (向后兼容委托函数)
         """
-        if score >= 90:
-            return 'A'
-        elif score >= 80:
-            return 'B'
-        elif score >= 70:
-            return 'C'
-        elif score >= 60:
-            return 'D'
-        else:
-            return 'F'
+        return score_to_grade_level(score)
     
     def get_statistics(self) -> Dict:
         """

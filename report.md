@@ -239,7 +239,7 @@ def parse_score_html(html_content):
     
     df = pd.DataFrame(rows)
     
-    # 计算绩点：成绩 >= 90 则绩点为 4.0，以此类推
+    # 计算绩点：按照百分制对应表映射绩点
     df['绩点'] = df['成绩'].apply(lambda x: calculate_gpa(x))
     
     return df
@@ -247,13 +247,27 @@ def parse_score_html(html_content):
 def calculate_gpa(score):
     """绩点计算规则"""
     if score >= 90:
-        return 4.0
+        return 4.00
+    elif score >= 86:
+        return 3.67
+    elif score >= 83:
+        return 3.33
     elif score >= 80:
-        return 3.5
+        return 3.00
+    elif score >= 76:
+        return 2.67
+    elif score >= 73:
+        return 2.33
     elif score >= 70:
-        return 3.0
+        return 2.00
+    elif score >= 66:
+        return 1.67
+    elif score >= 63:
+        return 1.33
+    elif score >= 60:
+        return 1.00
     else:
-        return 0.0
+        return 0.00
 ```
 
 ### 3.2 大模型调用与 Prompt 工程

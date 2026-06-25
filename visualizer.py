@@ -193,14 +193,33 @@ class Visualizer:
         if df is None or len(df) == 0:
             return go.Figure()
         
-        # 按绩点分级统计
-        grade_dist = df['等级'].value_counts().sort_index()
+        # 按绩点分级统计，并按学术高低排序
+        grade_order = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'F']
+        grade_dist = df['等级'].value_counts()
+        actual_order = [g for g in grade_order if g in grade_dist.index]
+        grade_dist = grade_dist.reindex(actual_order)
+        
+        # 定义每个等级的配色
+        colors_map = {
+            'A': '#2ecc71',
+            'A-': '#27ae60',
+            'B+': '#3498db',
+            'B': '#2980b9',
+            'B-': '#1f85de',
+            'C+': '#f1c40f',
+            'C': '#f39c12',
+            'C-': '#e67e22',
+            'D+': '#e74c3c',
+            'D': '#c0392b',
+            'F': '#95a5a6'
+        }
+        pie_colors = [colors_map.get(g, '#95a5a6') for g in grade_dist.index]
         
         fig = go.Figure(data=[
             go.Pie(
                 labels=grade_dist.index,
                 values=grade_dist.values,
-                marker=dict(colors=['#2ecc71', '#3498db', '#f39c12', '#e74c3c', '#95a5a6']),
+                marker=dict(colors=pie_colors),
                 hovertemplate='<b>%{label} 等级</b><br>课程数: %{value}<extra></extra>'
             )
         ])

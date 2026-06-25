@@ -7,26 +7,155 @@ import re
 from typing import Any, Dict, List, Optional
 
 
-def calculate_gpa(score: float) -> float:
+def calculate_gpa(score: Any) -> float:
     """
-    根据分数计算绩点
+    根据分数、等级或二级分制计算绩点
     
     Args:
-        score: 分数（0-100）
+        score: 分数（0-100）或等级（A, A-, P, F, 等）
     
     Returns:
         绩点（0-4.0）
     """
-    if score >= 90:
-        return 4.0
-    elif score >= 80:
-        return 3.5
-    elif score >= 70:
-        return 3.0
-    elif score >= 60:
-        return 2.0
+    # 尝试将输入转换为浮点数（百分制）
+    try:
+        val = float(score)
+        if val >= 90:
+            return 4.00
+        elif val >= 86:
+            return 3.67
+        elif val >= 83:
+            return 3.33
+        elif val >= 80:
+            return 3.00
+        elif val >= 76:
+            return 2.67
+        elif val >= 73:
+            return 2.33
+        elif val >= 70:
+            return 2.00
+        elif val >= 66:
+            return 1.67
+        elif val >= 63:
+            return 1.33
+        elif val >= 60:
+            return 1.00
+        else:
+            return 0.00
+    except (ValueError, TypeError):
+        pass
+
+    # 无法直接转换为浮点数，处理为字符串（字母记分制或二级分制）
+    if not isinstance(score, str):
+        score = str(score)
+    
+    grade = score.strip().upper()
+    
+    # 字母记分制映射
+    grade_map = {
+        'A': 4.00,
+        'A-': 3.67,
+        'B+': 3.33,
+        'B': 3.00,
+        'B-': 2.67,
+        'C+': 2.33,
+        'C': 2.00,
+        'C-': 1.67,
+        'D+': 1.33,
+        'D': 1.00,
+        'F': 0.00
+    }
+    if grade in grade_map:
+        return grade_map[grade]
+        
+    # 二级分制映射
+    if grade in ['通过', 'P', 'PASS', '及格']:
+        return 3.00
+    if grade in ['不通过', 'F', 'FAIL', '不及格']:
+        return 0.00
+        
+    return 0.00
+
+
+def grade_point_to_score(grade_point: float) -> float:
+    """
+    从绩点反推成绩分数
+    
+    对应关系：
+    - 4.00 → 95.0
+    - 3.67 → 88.0
+    - 3.33 → 84.0
+    - 3.00 → 81.0
+    - 2.67 → 78.0
+    - 2.33 → 74.0
+    - 2.00 → 71.0
+    - 1.67 → 68.0
+    - 1.33 → 64.0
+    - 1.00 → 61.0
+    - 0.00 → 50.0
+    
+    Args:
+        grade_point: 绩点
+    
+    Returns:
+        推算的分数
+    """
+    if grade_point >= 3.95:
+        return 95.0
+    elif grade_point >= 3.65:
+        return 88.0
+    elif grade_point >= 3.30:
+        return 84.0
+    elif grade_point >= 2.95:
+        return 81.0
+    elif grade_point >= 2.65:
+        return 78.0
+    elif grade_point >= 2.30:
+        return 74.0
+    elif grade_point >= 1.95:
+        return 71.0
+    elif grade_point >= 1.65:
+        return 68.0
+    elif grade_point >= 1.30:
+        return 64.0
+    elif grade_point >= 0.95:
+        return 61.0
     else:
-        return 0.0
+        return 50.0  # 不及格的分数代表值
+
+
+def score_to_grade_level(score: float) -> str:
+    """
+    根据分数获取等级 (A, A-, B+, B, B-, C+, C, C-, D+, D, F)
+    
+    Args:
+        score: 分数
+    
+    Returns:
+        等级字符串
+    """
+    if score >= 90:
+        return 'A'
+    elif score >= 86:
+        return 'A-'
+    elif score >= 83:
+        return 'B+'
+    elif score >= 80:
+        return 'B'
+    elif score >= 76:
+        return 'B-'
+    elif score >= 73:
+        return 'C+'
+    elif score >= 70:
+        return 'C'
+    elif score >= 66:
+        return 'C-'
+    elif score >= 63:
+        return 'D+'
+    elif score >= 60:
+        return 'D'
+    else:
+        return 'F'
 
 
 def calculate_avg_gpa(scores: List[float]) -> float:
@@ -186,9 +315,13 @@ def highlight_key_metrics(metrics: Dict[str, float]) -> Dict[str, str]:
 if __name__ == '__main__':
     # 测试工具函数
     print("GPA 计算测试:")
-    print(f"  90 分 -> {calculate_gpa(90)} 绩点")
-    print(f"  85 分 -> {calculate_gpa(85)} 绩点")
-    print(f"  75 分 -> {calculate_gpa(75)} 绩点")
+    print(f"  95 分 -> {calculate_gpa(95)} 绩点 (期望: 4.0)")
+    print(f"  88 分 -> {calculate_gpa(88)} 绩点 (期望: 3.67)")
+    print(f"  85 分 -> {calculate_gpa(85)} 绩点 (期望: 3.33)")
+    print(f"  80 分 -> {calculate_gpa(80)} 绩点 (期望: 3.0)")
+    print(f"  78 分 -> {calculate_gpa(78)} 绩点 (期望: 2.67)")
+    print(f"  '通过' -> {calculate_gpa('通过')} 绩点 (期望: 3.0)")
+    print(f"  'A-' -> {calculate_gpa('A-')} 绩点 (期望: 3.67)")
     
     print("\n平均 GPA 测试:")
     scores = [85, 90, 75, 88]
@@ -198,3 +331,4 @@ if __name__ == '__main__':
     scores = [85, 90, 75, 88]
     credits = [4, 3, 3, 4]
     print(f"  分数: {scores}, 学分: {credits} -> 加权 GPA: {calculate_weighted_gpa(scores, credits):.2f}")
+

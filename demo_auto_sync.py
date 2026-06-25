@@ -200,7 +200,7 @@ def demo_grade_point_conversion():
     
     print("\n绩点 → 成绩对应表：\n")
     
-    test_cases = [4.0, 3.7, 3.3, 3.0, 2.7, 2.3, 2.0, 1.7, 1.3, 1.0, 0.0]
+    test_cases = [4.0, 3.67, 3.33, 3.0, 2.67, 2.33, 2.0, 1.67, 1.33, 1.0, 0.0]
     
     print(f"{'绩点':<10} {'推算成绩':<15} {'等级':<10}")
     print("-" * 35)
@@ -208,7 +208,7 @@ def demo_grade_point_conversion():
     for gp in test_cases:
         score = processor._grade_point_to_score(gp)
         grade = processor._get_grade_level(score)
-        print(f"{gp:<10.1f} {score:<15.0f} {grade:<10}")
+        print(f"{gp:<10.2f} {score:<15.0f} {grade:<10}")
 
 
 def main():

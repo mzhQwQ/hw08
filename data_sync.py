@@ -16,6 +16,7 @@ from urllib.parse import urljoin
 import json
 from datetime import datetime
 import hashlib
+from utils.helpers import grade_point_to_score
 
 
 class WebVPNAuthenticator:
@@ -201,48 +202,8 @@ class EducationSystemScraper:
     
     @staticmethod
     def _grade_point_to_score(grade_point: float) -> float:
-        """从绩点反推成绩分数（粗略估计）
-        
-        绩点到分数的大致对应关系：
-        - 4.0 → 90-100
-        - 3.7 → 87-89
-        - 3.3 → 83-86
-        - 3.0 → 80-82
-        - 2.7 → 77-79
-        - 2.3 → 73-76
-        - 2.0 → 70-72
-        - 1.7 → 67-69
-        - 1.3 → 63-66
-        - 1.0 → 60-62
-        
-        Args:
-            grade_point: 绩点
-            
-        Returns:
-            float: 估计的分数
-        """
-        if grade_point >= 4.0:
-            return 95.0
-        elif grade_point >= 3.7:
-            return 88.0
-        elif grade_point >= 3.3:
-            return 84.0
-        elif grade_point >= 3.0:
-            return 81.0
-        elif grade_point >= 2.7:
-            return 78.0
-        elif grade_point >= 2.3:
-            return 74.0
-        elif grade_point >= 2.0:
-            return 71.0
-        elif grade_point >= 1.7:
-            return 68.0
-        elif grade_point >= 1.3:
-            return 64.0
-        elif grade_point >= 1.0:
-            return 61.0
-        else:
-            return 0.0
+        """从绩点反推成绩分数 (委托至 helpers 实现)"""
+        return grade_point_to_score(grade_point)
     
     def cache_scores(self, scores: List[Dict]) -> None:
         """缓存成绩数据到本地文件
