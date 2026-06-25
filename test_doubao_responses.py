@@ -5,13 +5,13 @@ from dotenv import load_dotenv
 def test_doubao_responses():
     load_dotenv()
     
-    # 根据用户提供的示例，API KEY 环境变量可能是 ARK_API_KEY 或 VOLCANOENGINE_API_KEY
+    # API KEY 环境变量
     api_key = os.getenv('VOLCANOENGINE_API_KEY')
-    # 用户示例中的模型名称
-    model_name = "doubao-seed-2-1-pro-260628"
+    # 模型名称
+    model_name = os.getenv('VOLCANOENGINE_MODEL_NAME')
     
     if not api_key:
-        print("❌ 错误: 请在 .env 文件中配置 ARK_API_KEY 或 VOLCANOENGINE_API_KEY")
+        print("❌ 错误: 请在 .env 文件中配置 VOLCANOENGINE_API_KEY")
         return
 
     print(f"正在测试豆包 Responses API (REST)...")

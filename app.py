@@ -20,6 +20,36 @@ finally:
     sys.stderr = old_stderr
 
 
+import threading
+import time
+
+
+class AnalysisTracker:
+    """学业诊断后台任务追踪器"""
+    def __init__(self):
+        self.status = "running"      # "running" | "completed" | "failed"
+        self.progress = 0.0          # 0.0 ~ 100.0
+        self.result = None
+        self.error = None
+        self.start_time = time.time()
+
+
+def run_analysis_thread(analyzer, scores_df, tracker):
+    """后台运行分析的线程函数"""
+    try:
+        result = analyzer.analyze_academic_status(scores_df)
+        if result is None:
+            tracker.status = "failed"
+            tracker.error = "API 返回结果为空，请检查 API 密钥或网络连接。"
+        else:
+            tracker.result = result
+            tracker.status = "completed"
+            tracker.progress = 100.0
+    except Exception as e:
+        tracker.status = "failed"
+        tracker.error = str(e)
+
+
 def initialize_session_state():
     """初始化会话状态"""
     if 'scores_df' not in st.session_state:
@@ -30,6 +60,10 @@ def initialize_session_state():
         st.session_state.statistics = None
     if 'subject_analysis' not in st.session_state:
         st.session_state.subject_analysis = None
+    if 'analysis_tracker' not in st.session_state:
+        st.session_state.analysis_tracker = None
+    if 'last_model_choice' not in st.session_state:
+        st.session_state.last_model_choice = 'volcanoengine'
 
 
 def main():
@@ -75,6 +109,13 @@ def main():
     
     initialize_session_state()
     
+    # 检测后台诊断任务是否在非分析/结果展示页面已静默完成
+    if st.session_state.analysis_tracker is not None:
+        tracker = st.session_state.analysis_tracker
+        if tracker.status == "completed":
+            st.session_state.analysis_result = tracker.result
+            st.session_state.analysis_tracker = None
+    
     # 页面标题
     st.title("🎓 智能学业状态诊断助手")
     st.markdown("""
@@ -100,7 +141,18 @@ def main():
         st.markdown("### ⚙️ 数据状态")
         if st.session_state.scores_df is not None:
             st.success(f"📊 已导入 {len(st.session_state.scores_df)} 门课程")
-            if st.session_state.analysis_result is not None:
+            
+            # 后台任务状态全局提示
+            if st.session_state.analysis_tracker is not None:
+                tracker = st.session_state.analysis_tracker
+                if tracker.status == "running":
+                    elapsed = time.time() - tracker.start_time
+                    st.info(f"🤖 正在诊断中... ({int(tracker.progress)}% | {elapsed:.0f}s)")
+                elif tracker.status == "completed":
+                    st.success("🤖 诊断报告：已生成")
+                elif tracker.status == "failed":
+                    st.error("🤖 诊断报告：生成失败")
+            elif st.session_state.analysis_result is not None:
                 st.success("🤖 诊断报告：已生成")
             else:
                 st.warning("🤖 诊断报告：未生成")
@@ -301,7 +353,64 @@ def show_analysis():
     if st.session_state.scores_df is None:
         st.warning("⚠️ 请先在'数据上传'页面上传成绩数据")
         return
-    
+        
+    # 检测是否已经有后台运行的任务，如果有，显示进度条并等待
+    if st.session_state.analysis_tracker is not None:
+        tracker = st.session_state.analysis_tracker
+        
+        if tracker.status == "running":
+            st.info("🤖 智能学业分析正在后台生成中...")
+            
+            # 计算自适应的进度条步长
+            model_choice = st.session_state.get('last_model_choice', 'volcanoengine')
+            is_reasoning = (model_choice == 'volcanoengine' and 'seed' in Config.VOLCANOENGINE_MODEL_NAME.lower())
+            
+            # 推理模型(doubao-seed)默认 100 秒，标准模型默认 15 秒
+            target_time = 100.0 if is_reasoning else 15.0
+            increment_interval = 0.5
+            increment_amount = (95.0 / (target_time / increment_interval))
+            
+            progress_bar = st.progress(int(tracker.progress))
+            status_text = st.empty()
+            
+            # 推理模型友好提示
+            tip_placeholder = st.empty()
+            if is_reasoning:
+                tip_placeholder.info(
+                    "💡 **重要提示**：当前使用的是抖音豆包推理模型 (`doubao-seed-...`)，该模型会进行深度思考与推理，"
+                    "因此生成报告需要 1-2 分钟（通常为 100 秒左右）。\n\n"
+                    "**由于分析正在后台多线程运行，您可以自由点击侧边栏切换至其他页面（如首页、数据上传）浏览，"
+                    "分析绝对不会中断！** 分析完成后，结果会自动保存，您可以随时前往“结果展示”查看。"
+                )
+            else:
+                tip_placeholder.info(
+                    "💡 **提示**：分析正在后台安全运行，您可以留在本页等待，或自由切换到其他页面。"
+                )
+                
+            while tracker.status == "running":
+                if tracker.progress < 95:
+                    tracker.progress = min(95.0, tracker.progress + increment_amount)
+                progress_bar.progress(int(tracker.progress))
+                elapsed = time.time() - tracker.start_time
+                status_text.text(f"正在进行智能分析，已耗时 {elapsed:.1f} 秒... (进度: {int(tracker.progress)}%)")
+                time.sleep(increment_interval)
+                
+            tip_placeholder.empty()
+            
+        if tracker.status == "completed":
+            st.session_state.analysis_result = tracker.result
+            st.success("✅ 分析完成！")
+            st.session_state.analysis_tracker = None
+            st.info("💡 分析结果已保存，请前往'结果展示'查看完整报告")
+            st.balloons()
+            st.rerun()
+        elif tracker.status == "failed":
+            st.error(f"❌ 分析过程出错: {tracker.error}")
+            st.session_state.analysis_tracker = None
+            return
+            
+        return
+
     col1, col2 = st.columns(2)
     
     with col1:
@@ -312,7 +421,7 @@ def show_analysis():
                 'qwen': '阿里通义千问',
                 'zhipu': '智谱 GLM',
                 'openai': 'OpenAI GPT',
-                'volcanoengine': '抖音豆包'
+                'volcanoengine': '🎵 抖音豆包'  # 带 🎵 适配 verify_volcanoengine.py
             }.get(x, x),
             help="选择要使用的大模型服务"
         )
@@ -326,31 +435,50 @@ def show_analysis():
     
     st.divider()
     
+    # 提醒用户豆包推理模型的性能特点与优化建议
+    if model_choice == 'volcanoengine' and not use_sample:
+        is_seed_model = 'seed' in Config.VOLCANOENGINE_MODEL_NAME.lower()
+        if is_seed_model:
+            st.warning(
+                f"⚠️ **高性能但耗时提示**：当前配置的豆包模型 `{Config.VOLCANOENGINE_MODEL_NAME}` 属于 **推理思维模型**。\n\n"
+                "此类模型在生成诊断报告前会产生大量“深度思考 (Reasoning)”步骤，因此 API 响应较慢（需要 1.5 - 2 分钟）。\n\n"
+                "**优化建议**：若需要极速生成（通常在 10 秒内），可在控制台创建非推理型模型（如 `doubao-1.5-pro` 或 `doubao-1.5-lite`）的接入点，"
+                "并修改 `.env` 配置文件中的 `VOLCANOENGINE_MODEL_NAME` 为其接入点 ID。"
+            )
+    
     # 分析按钮
     if st.button("🚀 生成诊断分析", key="analyze_button", use_container_width=True):
-        with st.spinner("🔄 正在分析学业状态..."):
-            if use_sample:
-                # 使用示例结果
+        if use_sample:
+            with st.spinner("🔄 正在生成示例报告..."):
+                time.sleep(1.0)
                 analysis_result = get_sample_analysis_result()
+                st.session_state.analysis_result = analysis_result
                 st.success("✅ 使用示例结果（演示模式）")
-            else:
-                # 调用真实 API
-                try:
-                    analyzer = LLMAnalyzer(model_type=model_choice)
-                    analysis_result = analyzer.analyze_academic_status(st.session_state.scores_df)
-                    
-                    if analysis_result is None:
-                        st.error("❌ 分析失败，请检查 API Key 配置或网络连接")
-                        return
-                    
-                    st.success("✅ 分析完成！")
+                st.info("💡 分析结果已保存，请前往'结果展示'查看完整报告")
+                st.balloons()
+        else:
+            try:
+                analyzer = LLMAnalyzer(model_type=model_choice)
                 
-                except Exception as e:
-                    st.error(f"❌ 分析过程出错: {str(e)}")
-                    return
-            
-            st.session_state.analysis_result = analysis_result
-            st.info("💡 分析结果已保存，请前往'结果展示'查看完整报告")
+                # 初始化追踪器
+                tracker = AnalysisTracker()
+                st.session_state.analysis_tracker = tracker
+                st.session_state.last_model_choice = model_choice
+                
+                # 启动后台线程执行 API 调用，守护线程随主线程退出而退出
+                t = threading.Thread(
+                    target=run_analysis_thread,
+                    args=(analyzer, st.session_state.scores_df, tracker),
+                    daemon=True
+                )
+                t.start()
+                
+                # 重新运行以加载等待界面
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ 启动分析过程出错: {str(e)}")
+                return
 
 
 def show_results():
@@ -362,8 +490,42 @@ def show_results():
         return
     
     if st.session_state.analysis_result is None:
-        st.warning("⚠️ 请先进行智能分析")
-        return
+        # 如果后台有正在运行的任务，显示进度条
+        if st.session_state.analysis_tracker is not None:
+            tracker = st.session_state.analysis_tracker
+            
+            if tracker.status == "running":
+                st.info("🤖 智能学业分析正在后台生成中...")
+                
+                model_choice = st.session_state.get('last_model_choice', 'volcanoengine')
+                is_reasoning = (model_choice == 'volcanoengine' and 'seed' in Config.VOLCANOENGINE_MODEL_NAME.lower())
+                target_time = 100.0 if is_reasoning else 15.0
+                increment_interval = 0.5
+                increment_amount = (95.0 / (target_time / increment_interval))
+                
+                progress_bar = st.progress(int(tracker.progress))
+                status_text = st.empty()
+                
+                while tracker.status == "running":
+                    if tracker.progress < 95:
+                        tracker.progress = min(95.0, tracker.progress + increment_amount)
+                    progress_bar.progress(int(tracker.progress))
+                    elapsed = time.time() - tracker.start_time
+                    status_text.text(f"正在后台生成学业诊断报告，已耗时 {elapsed:.1f} 秒... (进度: {int(tracker.progress)}%)")
+                    time.sleep(increment_interval)
+                    
+            if tracker.status == "completed":
+                st.session_state.analysis_result = tracker.result
+                st.session_state.analysis_tracker = None
+                st.success("✅ 分析完成，报告已就绪！")
+                st.rerun()
+            elif tracker.status == "failed":
+                st.error(f"❌ 分析出错: {tracker.error}")
+                st.session_state.analysis_tracker = None
+                return
+        else:
+            st.warning("⚠️ 请先进行智能分析")
+            return
     
     df = st.session_state.scores_df
     analysis = st.session_state.analysis_result
