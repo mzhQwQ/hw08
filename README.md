@@ -13,6 +13,10 @@
 - 🎯 **学业诊断**：识别学生的强弱学科，提供针对性的改进建议
 - 🚀 **零代码体验**：Streamlit 驱动，无需编程即可交互使用
 
+## 🎬 项目演示
+
+[![演示视频](https://img.shields.io/badge/视频演示-bilibili-blue?style=flat-square)](https://www.bilibili.com/video/BV11p7Y67E7L)
+
 ## 📁 目录结构
 
 ```
